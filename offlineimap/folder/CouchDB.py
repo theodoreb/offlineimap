@@ -217,7 +217,7 @@ class CouchDBFolder(BaseFolder):
 
     def savemessage(self, uid, content, flags, rtime):
         self.ui.debug('couchdb', 'savemessage: called to write with flags %s and content %s' % \
-                 (repr(flags), repr(message)))
+                 (repr(flags), repr(content)))
         
         if uid < 0:
             # We cannot assign a new uid.
