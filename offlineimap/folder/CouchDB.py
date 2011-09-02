@@ -64,7 +64,6 @@ def get_headers(msg):
     fields = {
       "from" : None,
       "subject" : None,
-      "headers" : {}
     }
     keys = [s.lower() for s in set(msg.keys())]
     emailaddr = ["to", "cc", "bcc"]
@@ -74,11 +73,6 @@ def get_headers(msg):
           fields[key] = map(header_decode, msg.get_all(key, []))
         elif key in decode:
           fields[key] = header_decode(msg.get(key, ""))
-        else:
-          val = msg.get_all(key, [])
-          if len(val) == 1:
-            val = val[0]
-          fields["headers"][key] = val
     return fields
 
 def header_decode(raw):
@@ -97,7 +91,6 @@ def parseToCouch(content, flags, rtime):
       msgid = msgobj["Message-id"]
     else:
       msgid = email.utils.make_msgid()
-    #vire les chevrons, plus pratique pour les fs
     msgid = msgid[1:-1]
 
     message = {
