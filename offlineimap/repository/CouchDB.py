@@ -43,10 +43,10 @@ class CouchDBRepository(BaseRepository):
     
     def getfolders(self):
         """Returns a list of ALL folders on this server."""
-        if not 'offlineimap' in self.db:
-          account = {'_id' : 'offlineimap', 'type' : 'config', 'folders' : ['INBOX']}
+        if not self.account_name in self.db:
+          account = {'_id' : self.account_name, 'type' : 'config', 'folders' : ['INBOX']}
           self.db.save(account)
-        return [self.getfolder(f) for f in self.db['offlineimap']['folders']]
+        return [self.getfolder(f) for f in self.db[self.account_name]['folders']]
 
     def getsep(self):
         return "/"
@@ -57,13 +57,13 @@ class CouchDBRepository(BaseRepository):
         pass
 
     def makefolder(self, foldername):
-        account = self.db['offlineimap']
+        account = self.db[self.account_name]
         account['folders'].append(foldername)
         self.db.save(account)
         pass
 
     def deletefolder(self, foldername):
-        account = self.db['offlineimap']
+        account = self.db[self.account_name]
         index = account['folders'].index(foldername)
         del account['folder'][index]
         self.db.save(account)
@@ -94,9 +94,9 @@ class CouchDBRepository(BaseRepository):
             view = {
                 "_id" : "_design/CouchDBFolder",
                 "views": { "messagelist" : {
-                    "map": "function(doc) {  emit(doc.meta.mailbox, {uid: doc.meta.uid, \"_id\": doc._id, \"message_id\": doc.message_id, flags: doc.meta.flags.sort()});}"} 
+                    "map": "function(doc) {  emit([doc.meta.account, doc.meta.mailbox], {uid: doc.meta.uid, \"_id\": doc._id, \"message_id\": doc.message_id, flags: doc.meta.flags.sort()});}"} 
                 }
             }
             self.db.save(view)
-        view = self.db.view("CouchDBFolder/messagelist", key=name)
+        view = self.db.view("CouchDBFolder/messagelist", key=[self.account_name, name])
         return view

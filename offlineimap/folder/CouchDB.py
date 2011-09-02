@@ -195,7 +195,6 @@ class CouchDBFolder(BaseFolder):
     def getmessage(self, uid):
         _id = self.messagelist[uid]['_id']
         mail = self.db.get(_id)
-        print repr(mail['message_id'])
         attachment = self.db.get_attachment(mail, '%s.eml' % mail['message_id'])
         return attachment.read()
 
