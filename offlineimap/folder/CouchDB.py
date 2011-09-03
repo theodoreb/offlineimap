@@ -17,75 +17,14 @@
 #    along with this program; if not, write to the Free Software
 #    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
 
-import socket
 import time
-import re
 import os
-import sys, mimetypes
 import email
 from Base import BaseFolder
-from email.Header import decode_header
-from email.Parser import Parser as EmailParser
-from email.utils import parseaddr, getaddresses
 from base64 import b64decode, b64encode
-from StringIO import StringIO
-from datetime import datetime
-import json
 
-
-def parse_attachment(message_part, idx):
-    content_disposition = message_part.get("Content-Disposition", None)
-    if content_disposition:
-        dispositions = content_disposition.strip().split(";")
-        if bool(content_disposition and dispositions[0].lower() in ["attachment", "inline"]):
-
-            content_type = message_part.get_content_type()
-            data = message_part.get_payload(decode=True)
-
-            filename = message_part.get_filename()
-
-            if not filename:
-              ext = mimetypes.guess_extension(content_type)
-              if not ext:
-                ext = ".bin"
-              filename = "part-%03d%s" % (idx, ext)
-
-            if data:
-              return {
-                  "filename" : filename,
-                  "data" : {
-                    "content_type" : content_type,
-                    "data" : b64encode(data)
-                    }
-                }
-    return None
-
-def get_headers(msg):
-    fields = {
-      "from" : None,
-      "subject" : None,
-    }
-    keys = [s.lower() for s in set(msg.keys())]
-    emailaddr = ["to", "cc", "bcc"]
-    decode = ["from", "sender", "reply-to", "date", "subject", "message_id"]
-    for key in keys:
-        if key in emailaddr:
-          fields[key] = map(header_decode, msg.get_all(key, []))
-        elif key in decode:
-          fields[key] = header_decode(msg.get(key, ""))
-    return fields
-
-def header_decode(raw):
-    decodefrag = decode_header(raw)
-    subj_fragments = []
-    for s, enc in decodefrag:
-        s = unicode(s, enc or 'ascii', 'replace').encode('utf8', 'replace')
-        subj_fragments.append(s)
-    return " ".join(subj_fragments)
-           
 def parseToCouch(content, flags, rtime):
     msgobj = email.message_from_string(content)
-    headers = get_headers(msgobj)
 
     if msgobj["Message-id"] is not None:
       msgid = msgobj["Message-id"]
@@ -97,53 +36,20 @@ def parseToCouch(content, flags, rtime):
       "message_id" : msgid,
       "type" : "email",
       "meta" : {
-        "tags" : [],
         "fetched" : time.time(),
-        "last_modified" : time.time(),
         "flags" : flags
       }
     }
     
     filename = "%s.eml" % msgid
     # ajoute le mail original
-    attachments = {
+    message["_attachments"] = {
         filename : {
             "content_type" : "message/rfc822",
             "data" : b64encode(content)
         }
     }
-    body = None
-    html = None
-    counter = 1
-    for part in msgobj.walk():
-        attachment = parse_attachment(part, counter)
-        if attachment:
-            attachments[attachment["filename"]] = attachment["data"]
-            counter += 1
-        elif part.get_content_type() == "text/plain":
-            if body is None:
-                body = ""
-            body += unicode(
-                part.get_payload(decode=True),
-                part.get_content_charset() or 'ascii',
-                'replace'
-            ).encode('utf8','replace')
-        elif part.get_content_type() == "text/html":
-            if html is None:
-                html = ""
-            html += unicode(
-                part.get_payload(decode=True),
-                part.get_content_charset(),
-                'replace'
-            ).encode('utf8','replace')
-
-    message["_attachments"] = attachments
-    message["text"] = {
-      "plain" : body,
-      "html" : html
-    }
-    headers.update(message)
-    return headers
+    return message
 
 class CouchDBFolder(BaseFolder):
     def __init__(self, db, name, repository, accountname, config):
@@ -228,7 +134,7 @@ class CouchDBFolder(BaseFolder):
         self.repository.savemessage(message)
 
         self.messagelist[uid] = {'uid': uid, '_id': message['_id'], 'message_id': message['message_id'], 'flags': flags}
-        self.ui.debug('maildir', 'savemessage: returning uid %s' % message['_id'])
+        self.ui.debug('couchdb', 'savemessage: returning uid %s' % message['_id'])
         return uid
         
     def getmessageflags(self, uid):
