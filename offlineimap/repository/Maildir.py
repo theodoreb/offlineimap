@@ -20,6 +20,7 @@ from Base import BaseRepository
 from offlineimap import folder
 from offlineimap.ui import getglobalui
 import os
+from shutil import rmtree
 from stat import *
 
 class MaildirRepository(BaseRepository):
@@ -107,7 +108,20 @@ class MaildirRepository(BaseRepository):
         self.folders = None
 
     def deletefolder(self, foldername):
-        self.ui.warn("NOT YET IMPLEMENTED: DELETE FOLDER %s" % foldername)
+	self.debug("deletefolder called with arg '%s'" % (foldername))
+        full_path = os.path.abspath(os.path.join(self.root, foldername))
+
+        # sanity tests
+        if self.getsep() == '/':
+            for component in foldername.split('/'):
+                assert not component in ['new', 'cur', 'tmp'],\
+                    "When using nested folders (/ as a Maildir separator), "\
+                    "folder names may not contain 'new', 'cur', 'tmp'."
+        assert foldername.find('../') == -1, "Folder names may not contain ../"
+        assert not foldername.startswith('/'), "Folder names may not begin with /"
+	self.debug("will delete %s" % (full_path))
+	rmtree(full_path)
+        #self.ui.warn("NOT YET IMPLEMENTED: DELETE FOLDER %s" % foldername)
 
     def getfolder(self, foldername):
 	if self.config.has_option('Repository ' + self.name, 'restoreatime') and self.config.getboolean('Repository ' + self.name, 'restoreatime'):

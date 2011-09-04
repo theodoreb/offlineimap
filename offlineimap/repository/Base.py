@@ -156,9 +156,9 @@ class BaseRepository(object, CustomConfig.ConfigHelperMixin):
         #
         # We don't delete folders right now.
 
-        #for key in desthash.keys():
-        #    if not key in srchash:
-        #        dest.deletefolder(key)
+        for key in desthash.keys():
+            if not key in srchash:
+                dest.deletefolder(key)
         
     ##### Keepalive
 

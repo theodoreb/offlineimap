@@ -334,6 +334,20 @@ class IMAPRepository(BaseRepository):
         finally:
             self.imapserver.releaseconnection(imapobj)
             
+    def deletefolder(self, foldername):
+        #if self.getreference() != '""':
+        #    newname = self.getreference() + self.getsep() + foldername
+        #else:
+        #    newname = foldername
+        imapobj = self.imapserver.acquireconnection()
+        try:
+            result = imapobj.delete(foldername)
+	    print "fser %s" % (repr(result))
+            if result[0] != 'OK':
+                raise RuntimeError, "Repository %s could not delete folder %s: %s" % (self.getname(), foldername, str(result))
+        finally:
+            self.imapserver.releaseconnection(imapobj)
+ 
 class MappedIMAPRepository(IMAPRepository):
     def getfoldertype(self):
         return MappedIMAPFolder
