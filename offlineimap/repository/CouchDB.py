@@ -21,16 +21,14 @@ from dbus import SystemBus
 from Base import BaseRepository
 from offlineimap import folder
 from offlineimap.ui import getglobalui
-from couchdb import Server    
+from couchdb import Server
 import time 
 
 class CouchDBRepository(BaseRepository):
     def __init__(self, reposname, account):
         BaseRepository.__init__(self, reposname, account)
-        # reponame, nom du depot dans le fichier de conf
         self.reposname = reposname
-        self.account = account
-        self.account_name = account.getname()
+        self.accountname = account.getname()
         self.dbname = self.getconf("dbname")
         server = Server(self.getconf("server"))
         if self.dbname in server:
@@ -43,10 +41,10 @@ class CouchDBRepository(BaseRepository):
     
     def getfolders(self):
         """Returns a list of ALL folders on this server."""
-        if not self.account_name in self.db:
-          account = {'_id' : self.account_name, 'type' : 'config', 'folders' : ['INBOX']}
+        if not self.accountname in self.db:
+          account = {'_id' : self.accountname, 'type' : 'config', 'folders' : ['INBOX']}
           self.db.save(account)
-        return [self.getfolder(f) for f in self.db[self.account_name]['folders']]
+        return [self.getfolder(f) for f in self.db[self.accountname]['folders']]
 
     def getsep(self):
         return "/"
@@ -57,46 +55,17 @@ class CouchDBRepository(BaseRepository):
         pass
 
     def makefolder(self, foldername):
-        account = self.db[self.account_name]
+        account = self.db[self.accountname]
         account['folders'].append(foldername)
         self.db.save(account)
         pass
 
     def deletefolder(self, foldername):
-        account = self.db[self.account_name]
+        account = self.db[self.accountname]
         index = account['folders'].index(foldername)
-        del account['folder'][index]
+        del account['folders'][index]
         self.db.save(account)
         pass
 
     def getfolder(self, foldername):
-        return folder.CouchDB.CouchDBFolder(self.db, foldername, self, self.account_name, self.config)
-        
-    def getmessage(self, uid):
-        mail = self.db.get(uid)
-        return mail
-
-    def savemessage(self, message):
-        self.db.save(message)
-
-    def savemessageflags(self, uid, flags):
-        doc = self.db.get(uid)
-        doc["meta"]["flags"] = flags
-        doc["meta"]["last_modified"] = time.time()
-        self.db.save(doc)
-
-    def deletemessage(self, uid):
-        doc = self.db.get(uid)
-        self.db.delete(doc)
-
-    def messagelist(self, name):
-        if not "_design/CouchDBFolder" in self.db:
-            view = {
-                "_id" : "_design/CouchDBFolder",
-                "views": { "messagelist" : {
-                    "map": "function(doc) {  emit([doc.meta.account, doc.meta.mailbox], {uid: doc.meta.uid, \"_id\": doc._id, \"message_id\": doc.message_id, flags: doc.meta.flags.sort()});}"} 
-                }
-            }
-            self.db.save(view)
-        view = self.db.view("CouchDBFolder/messagelist", key=[self.account_name, name])
-        return view
+        return folder.CouchDB.CouchDBFolder(self.db, foldername, self, self.accountname, self.config)

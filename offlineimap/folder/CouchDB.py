@@ -23,34 +23,6 @@ import email
 from Base import BaseFolder
 from base64 import b64decode, b64encode
 
-def parseToCouch(content, flags, rtime):
-    msgobj = email.message_from_string(content)
-
-    if msgobj["Message-id"] is not None:
-      msgid = msgobj["Message-id"]
-    else:
-      msgid = email.utils.make_msgid()
-    msgid = msgid[1:-1]
-
-    message = {
-      "message_id" : msgid,
-      "type" : "email",
-      "meta" : {
-        "fetched" : time.time(),
-        "flags" : flags
-      }
-    }
-    
-    filename = "%s.eml" % msgid
-    # ajoute le mail original
-    message["_attachments"] = {
-        filename : {
-            "content_type" : "message/rfc822",
-            "data" : b64encode(content)
-        }
-    }
-    return message
-
 class CouchDBFolder(BaseFolder):
     def __init__(self, db, name, repository, accountname, config):
         self.name = name
@@ -62,11 +34,38 @@ class CouchDBFolder(BaseFolder):
         self.cachemessagelist()
         BaseFolder.__init__(self)
 
+    def parseToCouch(self, uid, content, flags, mailbox, account):
+        msgobj = email.message_from_string(content)
+    
+        if msgobj["Message-id"] is not None:
+          msgid = msgobj["Message-id"]
+        else:
+          msgid = email.utils.make_msgid()
+        msgid = msgid[1:-1]
+    
+        filename = "%s.eml" % msgid
+        message = {
+            "_id": "%s-%d-%s" % (mailbox, uid, msgid),
+            "message_id": msgid,
+            "type": "email",
+            "meta": {
+                "uid": uid, 
+                "account": account, 
+                "mailbox": mailbox,
+                "fetched": time.time(),
+                "flags": flags
+            },
+            "_attachments": {
+                filename: {
+                    "content_type": "message/rfc822",
+                    "data": b64encode(content)
+                }
+            }         
+        }
+        return message
+
     def getaccountname(self):
         return self.accountname
-
-    def getfullname(self):
-        return os.path.join(self.getroot(), self.getname())
 
     def getuidvalidity(self):
         """Maildirs have no notion of uidvalidity, so we just return a magic
@@ -74,7 +73,7 @@ class CouchDBFolder(BaseFolder):
         return 42
 
     def quickchanged(self, statusfolder):
-        """Returns True if the Maildir has changed"""
+        """Returns True if the list has changed"""
         self.cachemessagelist()
         # Folder has different uids than statusfolder => TRUE
         if sorted(self.getmessageuidlist()) != \
@@ -89,7 +88,7 @@ class CouchDBFolder(BaseFolder):
     def cachemessagelist(self):
         tmpList = {}
         if self.messagelist is None:
-            msgList = self.repository.messagelist(self.name)
+            msgList = self._couchdbview(self.name)
 
             for row in msgList:
               tmpList[row["value"]["uid"]] = row["value"]
@@ -98,24 +97,47 @@ class CouchDBFolder(BaseFolder):
     def getmessagelist(self):
         return self.messagelist
 
+    def _couchdbview(self, name):
+        if not "_design/CouchDBFolder" in self.db:
+            view = {
+                "_id" : "_design/CouchDBFolder",
+                "views": { 
+                    "messagelist" : {
+                        "map": 
+"""function(doc) {
+    if (doc.type === "email") {
+        emit([doc.meta.account, doc.meta.mailbox], {
+            "uid": doc.meta.uid, 
+            "_id": doc._id,
+            "message_id": doc.message_id, 
+            "flags": doc.meta.flags.sort()
+        });
+    }
+}"""
+                    }
+                }
+            }
+            self.db.save(view)
+        view = self.db.view("CouchDBFolder/messagelist", key=[self.accountname, name])
+        return view
+
     def getmessage(self, uid):
-        _id = self.messagelist[uid]['_id']
-        mail = self.db.get(_id)
-        attachment = self.db.get_attachment(mail, '%s.eml' % mail['message_id'])
+        msg_meta = self.messagelist[uid]
+        attachment = self.db.get_attachment(msg_meta['_id'], '%s.eml' % msg_meta['message_id'])
         return attachment.read()
 
     def getmessagetime(self, uid):
-        messageid = self.messagelist[uid]['_id']
-        rec = self.repository.getmessage(messageid)
         try:
-            rtime = rec["meta"]["last_modified"]
+            _id = self.messagelist[uid]['_id']
+            message = self.db[_id]
+            rtime = message["meta"]["last_modified"]
         except:
             rtime = None 
         return rtime
 
     def savemessage(self, uid, content, flags, rtime):
-        self.ui.debug('couchdb', 'savemessage: called to write with flags %s and content %s' % \
-                 (repr(flags), repr(content)))
+        self.ui.debug('maildir', 'savemessage: called to write with flags %s and uid %s' % \
+                 (repr(flags), repr(uid)))
         
         if uid < 0:
             # We cannot assign a new uid.
@@ -125,27 +147,29 @@ class CouchDBFolder(BaseFolder):
             self.savemessageflags(uid, flags)
             return uid
 
-        message = parseToCouch(content, flags, rtime)
-        message["_id"] = "%d-%s-%s" % (uid, self.name, message['message_id'])
-        message['meta']['uid'] = uid
-        message['meta']['mailbox'] = self.name
-        message['meta']['account'] = self.accountname
-        
-        self.repository.savemessage(message)
-
-        self.messagelist[uid] = {'uid': uid, '_id': message['_id'], 'message_id': message['message_id'], 'flags': flags}
-        self.ui.debug('couchdb', 'savemessage: returning uid %s' % message['_id'])
+        message = self.parseToCouch(uid, content, flags, self.name, self.accountname)        
+        self.db.save(message)
+        self.messagelist[uid] = {
+            'uid': uid, 
+            '_id': message['_id'], 
+            'message_id': message['message_id'], 
+            'flags': flags
+        }
         return uid
         
     def getmessageflags(self, uid):
         return self.messagelist[uid]['flags']
 
     def savemessageflags(self, uid, flags):
-        messageid = self.messagelist[uid]['_id']
-        self.repository.savemessageflags(messageid, flags)
+        _id = self.messagelist[uid]['_id']
+        doc = self.db.get(_id)
+        doc["meta"]["flags"] = flags
+        doc["meta"]["last_modified"] = time.time()
+        self.db.save(doc)
 
     def deletemessage(self, uid):
         if not uid in self.messagelist:
             return
-        self.repository.deletemessage(self.messagelist[uid]['_id'])
-        del(self.messagelist[uid])
+        doc = self.db.get(self.messagelist[uid]['_id'])
+        self.db.delete(doc)
+        del self.messagelist[uid]       
