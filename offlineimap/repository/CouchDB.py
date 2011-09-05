@@ -30,11 +30,18 @@ class CouchDBRepository(BaseRepository):
         self.reposname = reposname
         self.accountname = account.getname()
         self.dbname = self.getconf("dbname")
-        server = Server(self.getconf("server"))
-        if self.dbname in server:
-            self.db = server[self.dbname]
+        server_uri = self.getconf("server")
+        #we are using desktopcouch
+        if server_uri == "desktopcouch":
+            from desktopcouch.records.server import DesktopDatabase
+            self.db = DesktopDatabase(self.dbname, create=True)
+        #use a "normal" couchdb server
         else:
-            self.db = server.create(self.dbname)
+            server = Server(server_uri)
+            if self.dbname in server:
+                self.db = server[self.dbname]
+            else:
+                self.db = server.create(self.dbname)
 
     def getfoldertype(self):
         return folder.CouchDB.CouchDBFolder
