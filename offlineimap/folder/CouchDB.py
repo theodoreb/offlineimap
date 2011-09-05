@@ -1,6 +1,6 @@
 # CouchDB db support
-# Copyright (C) 
-#    Francois Serman 
+# Copyright (C)
+#    Francois Serman
 #    Theodore Biadala
 #
 #    This program is free software; you can redistribute it and/or modify
@@ -36,21 +36,22 @@ class CouchDBFolder(BaseFolder):
 
     def parseToCouch(self, uid, content, flags, mailbox, account):
         msgobj = email.message_from_string(content)
-    
+
         if msgobj["Message-id"] is not None:
           msgid = msgobj["Message-id"]
         else:
           msgid = email.utils.make_msgid()
+        #remove brackets from message-id
         msgid = msgid[1:-1]
-    
+
         filename = "%s.eml" % msgid
         message = {
-            "_id": "%s-%d-%s" % (mailbox, uid, msgid),
+            "_id": "%s-%s-%d-%s" % (account, mailbox, uid, msgid),
             "message_id": msgid,
             "type": "email",
             "meta": {
-                "uid": uid, 
-                "account": account, 
+                "uid": uid,
+                "account": account,
                 "mailbox": mailbox,
                 "fetched": time.time(),
                 "flags": flags
@@ -60,7 +61,7 @@ class CouchDBFolder(BaseFolder):
                     "content_type": "message/rfc822",
                     "data": b64encode(content)
                 }
-            }         
+            }
         }
         return message
 
@@ -79,7 +80,7 @@ class CouchDBFolder(BaseFolder):
         if sorted(self.getmessageuidlist()) != \
                 sorted(statusfolder.getmessageuidlist()):
             return True
-        # Also check for flag changes, it's quick on a Maildir 
+        # Also check for flag changes, it's quick on a Maildir
         for (uid, message) in self.getmessagelist().iteritems():
             if message["meta"]['flags'] != statusfolder.getmessageflags(uid):
                 return True
@@ -93,7 +94,7 @@ class CouchDBFolder(BaseFolder):
             for row in msgList:
               tmpList[row["value"]["uid"]] = row["value"]
             self.messagelist = tmpList
-            
+
     def getmessagelist(self):
         return self.messagelist
 
@@ -101,15 +102,15 @@ class CouchDBFolder(BaseFolder):
         if not "_design/CouchDBFolder" in self.db:
             view = {
                 "_id" : "_design/CouchDBFolder",
-                "views": { 
+                "views": {
                     "messagelist" : {
-                        "map": 
+                        "map":
 """function(doc) {
     if (doc.type === "email") {
         emit([doc.meta.account, doc.meta.mailbox], {
-            "uid": doc.meta.uid, 
+            "uid": doc.meta.uid,
             "_id": doc._id,
-            "message_id": doc.message_id, 
+            "message_id": doc.message_id,
             "flags": doc.meta.flags.sort()
         });
     }
@@ -132,13 +133,13 @@ class CouchDBFolder(BaseFolder):
             message = self.db[_id]
             rtime = message["meta"]["last_modified"]
         except:
-            rtime = None 
+            rtime = None
         return rtime
 
     def savemessage(self, uid, content, flags, rtime):
         self.ui.debug('maildir', 'savemessage: called to write with flags %s and uid %s' % \
                  (repr(flags), repr(uid)))
-        
+
         if uid < 0:
             # We cannot assign a new uid.
             return uid
@@ -147,16 +148,16 @@ class CouchDBFolder(BaseFolder):
             self.savemessageflags(uid, flags)
             return uid
 
-        message = self.parseToCouch(uid, content, flags, self.name, self.accountname)        
+        message = self.parseToCouch(uid, content, flags, self.name, self.accountname)
         self.db.save(message)
         self.messagelist[uid] = {
-            'uid': uid, 
-            '_id': message['_id'], 
-            'message_id': message['message_id'], 
+            'uid': uid,
+            '_id': message['_id'],
+            'message_id': message['message_id'],
             'flags': flags
         }
         return uid
-        
+
     def getmessageflags(self, uid):
         return self.messagelist[uid]['flags']
 
@@ -172,4 +173,4 @@ class CouchDBFolder(BaseFolder):
             return
         doc = self.db.get(self.messagelist[uid]['_id'])
         self.db.delete(doc)
-        del self.messagelist[uid]       
+        del self.messagelist[uid]

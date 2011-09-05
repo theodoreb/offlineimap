@@ -1,6 +1,6 @@
 # CouchDB repository support
-# Copyright (C) 
-#    Francois Serman 
+# Copyright (C)
+#    Francois Serman
 #    Theodore Biadala
 #
 #    This program is free software; you can redistribute it and/or modify
@@ -22,7 +22,7 @@ from Base import BaseRepository
 from offlineimap import folder
 from offlineimap.ui import getglobalui
 from couchdb import Server
-import time 
+import time
 
 class CouchDBRepository(BaseRepository):
     def __init__(self, reposname, account):
@@ -38,7 +38,7 @@ class CouchDBRepository(BaseRepository):
 
     def getfoldertype(self):
         return folder.CouchDB.CouchDBFolder
-    
+
     def getfolders(self):
         """Returns a list of ALL folders on this server."""
         if not self.accountname in self.db:
