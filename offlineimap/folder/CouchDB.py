@@ -1,7 +1,7 @@
 # CouchDB db support
 # Copyright (C)
-#    Francois Serman
 #    Theodore Biadala
+#    Francois Serman
 #
 #    This program is free software; you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
@@ -34,20 +34,8 @@ class CouchDBFolder(BaseFolder):
         self.cachemessagelist()
         BaseFolder.__init__(self)
 
-    def parseToCouch(self, uid, content, flags, mailbox, account):
-        msgobj = email.message_from_string(content)
-
-        if msgobj["Message-id"] is not None:
-          msgid = msgobj["Message-id"]
-        else:
-          msgid = email.utils.make_msgid()
-        #remove brackets from message-id
-        msgid = msgid[1:-1]
-
-        filename = "%s.eml" % msgid
+    def mailToCouch(self, uid, content, flags, mailbox, account):
         message = {
-            "_id": "%s-%s-%d-%s" % (account, mailbox, uid, msgid),
-            "message_id": msgid,
             "type": "email",
             "meta": {
                 "uid": uid,
@@ -57,7 +45,7 @@ class CouchDBFolder(BaseFolder):
                 "flags": flags
             },
             "_attachments": {
-                filename: {
+                "raw.eml": {
                     "content_type": "message/rfc822",
                     "data": b64encode(content)
                 }
@@ -108,9 +96,8 @@ class CouchDBFolder(BaseFolder):
 """function(doc) {
     if (doc.type === "email") {
         emit([doc.meta.account, doc.meta.mailbox], {
-            "uid": doc.meta.uid,
             "_id": doc._id,
-            "message_id": doc.message_id,
+            "uid": doc.meta.uid,
             "flags": doc.meta.flags.sort()
         });
     }
@@ -123,8 +110,7 @@ class CouchDBFolder(BaseFolder):
         return view
 
     def getmessage(self, uid):
-        msg_meta = self.messagelist[uid]
-        attachment = self.db.get_attachment(msg_meta['_id'], '%s.eml' % msg_meta['message_id'])
+        attachment = self.db.get_attachment(self.messagelist[uid]['_id'], 'raw.eml')
         return attachment.read()
 
     def getmessagetime(self, uid):
@@ -137,7 +123,7 @@ class CouchDBFolder(BaseFolder):
         return rtime
 
     def savemessage(self, uid, content, flags, rtime):
-        self.ui.debug('maildir', 'savemessage: called to write with flags %s and uid %s' % \
+        self.ui.debug('couchdb', 'savemessage: called to write with flags %s and uid %s' % \
                  (repr(flags), repr(uid)))
 
         if uid < 0:
@@ -148,12 +134,11 @@ class CouchDBFolder(BaseFolder):
             self.savemessageflags(uid, flags)
             return uid
 
-        message = self.parseToCouch(uid, content, flags, self.name, self.accountname)
+        message = self.mailToCouch(uid, content, flags, self.name, self.accountname)
         self.db.save(message)
         self.messagelist[uid] = {
             'uid': uid,
             '_id': message['_id'],
-            'message_id': message['message_id'],
             'flags': flags
         }
         return uid

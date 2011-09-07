@@ -1,7 +1,7 @@
 # CouchDB repository support
 # Copyright (C)
-#    Francois Serman
 #    Theodore Biadala
+#    Francois Serman
 #
 #    This program is free software; you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
@@ -31,11 +31,11 @@ class CouchDBRepository(BaseRepository):
         self.accountname = account.getname()
         self.dbname = self.getconf("dbname")
         server_uri = self.getconf("server")
-        #we are using desktopcouch
+        # we are using desktopcouch
         if server_uri == "desktopcouch":
-            from desktopcouch.records.server import DesktopDatabase
+            from desktopcouch.application.server import DesktopDatabase
             self.db = DesktopDatabase(self.dbname, create=True)
-        #use a "normal" couchdb server
+        # use a "normal" couchdb server
         else:
             server = Server(server_uri)
             if self.dbname in server:
