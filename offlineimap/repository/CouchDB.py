@@ -22,7 +22,6 @@ from Base import BaseRepository
 from offlineimap import folder
 from offlineimap.ui import getglobalui
 from couchdb import Server
-import time
 
 class CouchDBRepository(BaseRepository):
     def __init__(self, reposname, account):

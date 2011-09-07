@@ -17,11 +17,9 @@
 #    along with this program; if not, write to the Free Software
 #    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
 
-import time
-import os
-import email
 from Base import BaseFolder
-from base64 import b64decode, b64encode
+from time import time
+from base64 import b64encode
 
 class CouchDBFolder(BaseFolder):
     def __init__(self, db, name, repository, accountname, config):
@@ -41,7 +39,7 @@ class CouchDBFolder(BaseFolder):
                 "uid": uid,
                 "account": account,
                 "mailbox": mailbox,
-                "fetched": time.time(),
+                "fetched": time(),
                 "flags": flags
             },
             "_attachments": {
