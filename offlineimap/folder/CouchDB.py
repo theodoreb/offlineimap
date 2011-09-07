@@ -25,12 +25,12 @@ from base64 import b64decode, b64encode
 
 class CouchDBFolder(BaseFolder):
     def __init__(self, db, name, repository, accountname, config):
+        self.db = db
         self.name = name
+        self.repository = repository
+        self.accountname = accountname
         self.config = config
         self.messagelist = None
-        self.repository = repository
-        self.db = db
-        self.accountname = accountname
         self.cachemessagelist()
         BaseFolder.__init__(self)
 
@@ -115,8 +115,7 @@ class CouchDBFolder(BaseFolder):
 
     def getmessagetime(self, uid):
         try:
-            _id = self.messagelist[uid]['_id']
-            message = self.db[_id]
+            message = self.db[self.messagelist[uid]['_id']]
             rtime = message["meta"]["last_modified"]
         except:
             rtime = None
@@ -147,8 +146,7 @@ class CouchDBFolder(BaseFolder):
         return self.messagelist[uid]['flags']
 
     def savemessageflags(self, uid, flags):
-        _id = self.messagelist[uid]['_id']
-        doc = self.db.get(_id)
+        doc = self.db.get(self.messagelist[uid]['_id'])
         doc["meta"]["flags"] = flags
         doc["meta"]["last_modified"] = time.time()
         self.db.save(doc)
